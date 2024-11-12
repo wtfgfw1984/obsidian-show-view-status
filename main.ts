@@ -1,134 +1,74 @@
+// 导入所需的 Obsidian API 组件
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 
-// Remember to rename these classes and interfaces!
+// 定义插件主类，继承自 Obsidian Plugin 类
+export default class ShowViewStatusPlugin extends Plugin {
 
-interface MyPluginSettings {
-	mySetting: string;
-}
-
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
-
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
-
+	// 插件加载时执行
 	async onload() {
-		await this.loadSettings();
+		// 注册布局变更事件监听器 打开新文件时会跟新
+		this.registerEvent(
+			this.app.workspace.on('layout-change', () => {
+				this.updateViewStatus();
+			})
+		);
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
+		// 初始化时更新视图状态 不用操作立即
+		this.updateViewStatus();
+	}
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+	// 更新视图状态的私有方法
+	private updateViewStatus() {
+		// 获取所有 markdown 类型的叶子视图
+		const leaves = this.app.workspace.getLeavesOfType('markdown');
+		
+		// 遍历每个叶子视图
+		leaves.forEach(leaf => {
+			const view = leaf.view as MarkdownView;
+			const containerEl = view.containerEl;
+			
+			// 查找视图中的"更多选项"按钮
+			const moreOptionsBtn = containerEl.querySelector('.view-action[aria-label="更多选项"]');
+			
+			// 移除已存在的状态指示器
+			containerEl.querySelectorAll('.view-status-indicator').forEach(el => el.remove());
+			
+			if (moreOptionsBtn) {
+				// 创建新的状态指示器
+				const statusBtn = document.createElement('div');
+				statusBtn.addClass('view-status-indicator');
+				
+				// 获取当前视图状态
+				const viewState = view.getState() as {
+					mode: string;
+					source: boolean;
+				};
+				
+				// 确定状态文本
+				let modeClass = 'default-mode';  // 默认值
+				let statusText = '未知模式';     // 默认值
+				if (viewState.mode === "preview") {
+					modeClass = 'preview-mode';
+					statusText = '阅读模式';
+				} else if (viewState.mode === 'source' && viewState.source) {
+					modeClass = 'source-mode';
+					statusText = '源码模式';
+				} else if (viewState.mode === 'source' && !viewState.source) {
+					modeClass = 'live-mode';
+					statusText = '实时模式';
 				}
+				
+				// 设置按钮文本并插入
+				statusBtn.setText(statusText);
+				statusBtn.addClass(modeClass);
+				moreOptionsBtn.parentElement?.insertBefore(statusBtn, moreOptionsBtn);
 			}
 		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
+	// 插件卸载时执行
 	onunload() {
-
-	}
-
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+		// 移除所有状态指示器
+		document.querySelectorAll('.view-status-indicator').forEach(el => el.remove());
 	}
 }

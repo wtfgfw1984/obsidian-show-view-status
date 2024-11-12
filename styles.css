@@ -1,8 +1,30 @@
-/*
+.view-status-indicator {
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-right: 4px;
+    font-size: 12px;
+    user-select: none;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.preview-mode {
+    background-color: #4d7d55;
+    color: white;
+}
 
-If your plugin does not need CSS, delete this file.
+.source-mode {
+    background-color: #8a5354;
+    color: white;
+}
 
-*/
+.live-mode {
+    background-color: #8c8334;
+    color: white;
+}
+
+.default-mode {
+    background-color: #9e9e9e;
+    color: white;
+}
+
